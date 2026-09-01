@@ -12,3 +12,19 @@ datasource db {
   provider = "postgresql"
 }
 
+
+model User{
+
+  id String  @id @default(uuid())
+  email String @unique
+  phone String? @unique
+  firstName String
+  lastName String
+  password String
+  role String @default("CUSTOMER")
+  status String @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  lastLogin DateTime?
+  privileges String[] @default([]) //["CREATE_PRODUCT", "UPDATE_PRODUCT", "DELETE_PRODUCT", "VIEW_PRODUCT"]
+  // gender, emailVerified, phoneVerified
+
+}
