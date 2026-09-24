@@ -20,7 +20,31 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const pageNumberInString = request.nextUrl.searchParams.get("pageNumber");
+    const pageSizeInString = request.nextUrl.searchParams.get("pageSize");
+
+    const pageNumber = pageNumberInString ? parseInt(pageNumberInString) : 1;
+    const pageSize = pageSizeInString ? parseInt(pageSizeInString) : 10;
+
+    const userCount = await prisma.user.count();
+
+    const totalPages = Math.ceil(userCount / pageSize);
+
+    if(pageNumber > totalPages){
+        return NextResponse.json(
+            {
+                message : "Page number exceeds total pages",
+                totalPages : totalPages
+            },
+            {
+                status : 400
+            }
+        );
+    }
+
     const users = await prisma.user.findMany({
+        skip : (pageNumber - 1) * pageSize,
+        take : pageSize,
         select : {
             id : true,
             email : true,
@@ -32,13 +56,21 @@ export async function GET(request: NextRequest) {
             status : true,
             lastLogin : true,
             privileges : true,
+            profileImage : true
         }
     });
+
 
     return NextResponse.json(
         {
             message : "Users fetched successfully",
-            users : users
+            users : users,
+            pagination : {
+                pageNumber : pageNumber,
+                pageSize : pageSize,
+                totalPages : totalPages,
+                userCount : userCount
+            }
         },
         {
             status : 200
@@ -154,9 +186,107 @@ export async function PUT(request: NextRequest) {
         );
     }
 
+    const body = await request.json();
+
     if(requestedUser.id !== id){
         // User is trying to update their own information
+        // never allow users to update their own role, status or privileges
+
+        const user = await prisma.user.findUnique({
+            where : {
+                id : id || "0000"
+            }
+        });
+
+        if(user == null){
+            return NextResponse.json(
+                {
+                    message : "User not found"
+                },
+                {
+                    status : 404
+                }
+            );
+        }
+
+        await prisma.user.update({
+            where : {
+                id : id || "0000"
+            },
+            data : {
+                email : body.email || user.email,
+                firstName : body.firstName || user.firstName,
+                lastName : body.lastName || user.lastName,
+                phone : body.phone || user.phone,
+                profileImage : body.profileImage || user.profileImage // should be included in the token
+            }
+        });
+
+        return NextResponse.json(
+            {
+                message : "User updated successfully"
+            },
+            {
+                status : 200
+            }
+        );
+
     }else{
         // User is trying to update someone else's information
+
+        const havePrivilege = await isPrivileged(request, "users:edit");
+
+        if(!havePrivilege){
+            return NextResponse.json(
+                {
+                    message : "You do not have the privilege to update other users' information"
+                },
+                {
+                    status : 403
+                }
+            );
+        }
+
+        const user = await prisma.user.findUnique({
+            where : {
+                id : id || "0000"
+            }
+        });
+
+        if(user == null){
+            return NextResponse.json(
+                {
+                    message : "User not found"
+                },
+                {
+                    status : 404
+                }
+            );
+        }
+
+        await prisma.user.update({
+            where : {
+                id : id || "0000"
+            },
+            data : {
+                email : body.email || user.email,
+                firstName : body.firstName || user.firstName,
+                lastName : body.lastName || user.lastName,
+                phone : body.phone || user.phone,
+                profileImage : body.profileImage || user.profileImage,
+                role : body.role || user.role,
+                status : body.status || user.status,
+                privileges : body.privileges || user.privileges
+            }
+        });
+
+        return NextResponse.json(
+            {
+                message : "User updated successfully"
+            },
+            {
+                status : 200
+            }
+        );
     }
 }
