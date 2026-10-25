@@ -20,3 +20,7 @@ export const productCreationRequestSchema = z.object({
         type: MediaTypeEnum
     }))
 })
+
+export default productCreationRequestSchema;
+
+export type ProductCreationRequest = z.infer<typeof productCreationRequestSchema>;
